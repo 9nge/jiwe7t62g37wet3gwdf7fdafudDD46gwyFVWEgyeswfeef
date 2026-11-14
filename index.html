@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="pragma" content="no-cache">
+<title>Nine AI</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<style>
+:root{
+  --bg:#000;--s1:#0d0d0d;--s2:#151515;--s3:#212121;
+  --line:rgba(255,255,255,.08);--text:#f1f1ec;--hint:#84847e;
+  --lime:#c8ff2e;--ink:#000;
+  --glow:0 0 20px rgba(200,255,46,.22);
+  --h:var(--tg-viewport-stable-height,100dvh);
+  --ease-out:cubic-bezier(.22,1,.36,1);
+  --ease-spring:cubic-bezier(.34,1.4,.64,1);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:var(--h);overflow:hidden;overscroll-behavior:none;color:var(--text);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;touch-action:pan-x pan-y;background:var(--bg)}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+img{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.ic{width:22px;height:22px;display:block;flex-shrink:0}
+[data-ic]{display:contents}
+
+#app{height:100%;display:flex;flex-direction:column}
+.stage{flex:1;position:relative;min-height:0}
+.screen{position:absolute;inset:0;display:none;flex-direction:column}
+.screen.active{display:flex;z-index:1;animation:screenIn .34s var(--ease-out)}
+.screen.leave{display:flex;z-index:0;pointer-events:none;
+  animation:screenOut .26s ease-in forwards}
+.screen.active.anim-right{animation-name:slideInRight}
+.screen.active.anim-left{animation-name:slideInLeft}
+@keyframes screenIn{from{opacity:0;transform:translateY(10px) scale(.995)}to{opacity:1;transform:none}}
+@keyframes slideInRight{from{opacity:0;transform:translateX(34px)}to{opacity:1;transform:none}}
+@keyframes slideInLeft{from{opacity:0;transform:translateX(-34px)}to{opacity:1;transform:none}}
+@keyframes screenOut{to{opacity:0;transform:translateX(var(--out-x,0)) scale(.995)}}
+
+/* декоративный фон на главном экране — едва заметный, не мешает кликам */
+.deco{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.deco svg{position:absolute}
+.deco .a{top:-30px;right:-40px;width:170px;opacity:.07}
+.deco .b{top:230px;left:-55px;width:130px;opacity:.06}
+.deco .c{bottom:90px;right:-30px;width:110px;opacity:.07}
+.deco .d{bottom:260px;left:20px;width:46px;opacity:.08}
+
+/* Верхняя панель */
+.top{position:relative;z-index:1;display:flex;align-items:center;gap:14px;padding:18px 18px 8px;flex-shrink:0}
+.top .tt{flex:1;min-width:0}
+.top h1{margin:0;font-size:28px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.top p{margin:3px 0 0;font-size:13px;color:var(--hint)}
+/* Фон под картинкой чёрный (как и сама картинка): раньше из-под скруглённых
+   углов логотипа на пиксель выглядывал лаймовый блок и это выглядело как
+   зелёная окантовка. Теперь картинка перекрывает блок целиком. */
+.logo{position:relative;width:44px;height:44px;border-radius:14px;background:#000;color:var(--lime);
+  display:grid;place-items:center;overflow:hidden;flex-shrink:0;isolation:isolate;
+  box-shadow:var(--glow),inset 0 0 0 1px rgba(255,255,255,.06)}
+.logo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;
+  transform:scale(1.04);transform-origin:center}
+.logo .ic{width:24px;height:24px;stroke-width:2.2}
+
+.content{position:relative;z-index:1;flex:1;overflow-y:auto;padding:10px 16px 96px;scrollbar-width:none}
+.content::-webkit-scrollbar,.messages::-webkit-scrollbar{display:none}
+
+/* Карточки списка */
+.item{display:flex;align-items:center;gap:14px;padding:14px;margin-bottom:10px;background:var(--s1);
+  border:1px solid var(--line);border-radius:18px;cursor:pointer;
+  transition:transform .22s var(--ease-out),border-color .2s ease,background .25s ease,box-shadow .25s ease}
+@keyframes itemIn{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+.item:active{transform:scale(.97);transition-duration:.09s}
+.item.static{cursor:default}.item.static:active{transform:none}
+.item.on{border-color:rgba(200,255,46,.6);background:linear-gradient(135deg,rgba(200,255,46,.12),var(--s1) 65%)}
+.item .ico{width:44px;height:44px;border-radius:14px;background:var(--s3);color:var(--lime);
+  display:grid;place-items:center}
+.item.on .ico{background:var(--lime);color:var(--ink)}
+.item .body{flex:1;min-width:0}
+.item .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .s{font-size:12.5px;color:var(--hint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .end{display:flex;color:var(--hint)}
+.item.on .end{color:var(--lime)}
+.item .end .ic{width:20px;height:20px}
+
+.fab{position:absolute;z-index:1;right:16px;bottom:16px;display:flex;align-items:center;gap:8px;
+  padding:14px 22px 14px 16px;border-radius:999px;background:var(--lime);color:var(--ink);
+  font-weight:700;box-shadow:0 8px 22px rgba(200,255,46,.2);
+  transition:transform .22s var(--ease-spring),box-shadow .25s ease;
+  animation:fabIn .5s var(--ease-out) backwards .08s}
+@keyframes fabIn{from{opacity:0;transform:translateY(14px) scale(.94)}to{opacity:1;transform:none}}
+.fab:active{transform:scale(.94);transition-duration:.09s}
+.fab .ic{width:20px;height:20px;stroke-width:2.6}
+
+/* Нижнее меню */
+.tabbar{position:relative;display:flex;flex-shrink:0;background:#000;
+  border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);--i:0}
+body.in-chat .tabbar{display:none}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 0 9px;
+  color:var(--hint);font-size:11.5px;font-weight:600;transition:color .25s ease}
+.tab .ic{width:24px;height:24px;transition:transform .3s var(--ease-spring)}
+.tab.on .ic{transform:translateY(-1px) scale(1.12)}
+.tab.on{color:var(--lime)}
+.indicator{position:absolute;top:-1px;left:0;width:33.333%;display:flex;justify-content:center;
+  transform:translateX(calc(var(--i)*100%));transition:transform .38s var(--ease-spring)}
+.indicator::after{content:"";width:34px;height:3px;border-radius:0 0 3px 3px;background:var(--lime)}
+
+/* Чат */
+.chead{display:flex;align-items:center;gap:12px;padding:10px 14px;flex-shrink:0;
+  border-bottom:1px solid var(--line);background:#000}
+.back{width:40px;height:40px;border-radius:13px;background:var(--s2);border:1px solid var(--line);
+  display:grid;place-items:center;transition:transform .2s var(--ease-spring),background .2s}
+.back:active{transform:scale(.9)}
+body.native-back .back{display:none}
+.chead .tt{flex:1;min-width:0}
+.chead .name{font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--hint)}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--lime)}
+
+.messages{flex:1;overflow-y:auto;padding:14px 14px 6px;display:flex;flex-direction:column;gap:10px;scrollbar-width:none}
+.msg{max-width:86%;min-width:0;padding:10px 14px;border-radius:20px;overflow-wrap:anywhere;
+  animation:msgIn .34s var(--ease-out) backwards}
+.msg.old{animation:none}
+@keyframes msgIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+.msg.user{align-self:flex-end;background:var(--lime);color:var(--ink);font-weight:500;
+  border-bottom-right-radius:6px;white-space:pre-wrap}
+.msg.assistant{align-self:flex-start;background:var(--s2);border:1px solid var(--line);
+  border-bottom-left-radius:6px}
+.msg.err{border-color:rgba(255,92,92,.5);color:#ff8d8d;display:flex;gap:8px;align-items:center}
+.msg.err .ic{width:18px;height:18px}
+
+.msg.assistant>*:first-child{margin-top:0}.msg.assistant>*:last-child{margin-bottom:0}
+.msg.assistant p{margin:0 0 8px}
+.msg.assistant a{color:var(--lime)}
+.msg.assistant ul,.msg.assistant ol{margin:0 0 8px;padding-left:22px}
+.msg.assistant li{margin:2px 0}.msg.assistant li::marker{color:var(--lime)}
+.msg.assistant h1,.msg.assistant h2,.msg.assistant h3{margin:12px 0 6px;font-size:16px;line-height:1.3}
+.msg.assistant blockquote{margin:0 0 8px;padding:2px 12px;border-left:3px solid var(--lime);color:var(--hint)}
+.msg.assistant hr{border:0;border-top:1px solid var(--line);margin:10px 0}
+.msg.assistant table{display:block;overflow-x:auto;border-collapse:collapse;margin:0 0 8px;font-size:13px}
+.msg.assistant th,.msg.assistant td{border:1px solid var(--line);padding:5px 9px}
+.msg.assistant code{background:rgba(255,255,255,.08);padding:2px 6px;border-radius:6px;
+  font:13px ui-monospace,Menlo,Consolas,monospace}
+.msg.assistant pre{background:#000;border:1px solid var(--line);border-top:0;padding:12px;
+  border-radius:0 0 12px 12px;overflow-x:auto;margin:0 0 8px}
+.msg.assistant pre code{background:none;padding:0;color:var(--lime)}
+.code-bar{display:flex;align-items:center;gap:6px;padding:7px 8px 7px 12px;background:var(--s3);
+  border:1px solid var(--line);border-bottom:0;border-radius:12px 12px 0 0;margin-top:4px}
+.code-bar .code-lang{flex:1;min-width:0;font-size:12px;color:var(--hint);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.code-act{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex-shrink:0;
+  background:var(--s2);border:1px solid var(--line);color:var(--hint);
+  transition:transform .2s var(--ease-spring),background .18s,color .18s}
+.code-act:active{transform:scale(.88)}
+.code-act.dl{background:var(--lime);color:var(--ink);border-color:transparent}
+.code-act .ic{width:16px;height:16px;stroke-width:2.4}
+
+/* Файл в сообщении */
+.file-chip{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:14px;
+  background:rgba(0,0,0,.12)}
+.msg.assistant .file-chip{background:rgba(255,255,255,.05)}
+.file-chip .fico{width:34px;height:34px;border-radius:10px;background:rgba(0,0,0,.18);
+  display:grid;place-items:center;flex-shrink:0}
+.msg.assistant .file-chip .fico{background:rgba(200,255,46,.12);color:var(--lime)}
+.file-chip .finfo{min-width:0}
+.file-chip .fname{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-chip .fsize{font-size:11.5px;opacity:.7}
+.msg.user .file-chip + *{margin-top:8px}
+
+.dots{display:inline-flex;gap:5px;padding:6px 2px}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--lime);animation:dotPulse 1.15s ease-in-out infinite}
+.dots i:nth-child(2){animation-delay:.14s}.dots i:nth-child(3){animation-delay:.28s}
+@keyframes dotPulse{0%,70%,100%{transform:translateY(0) scale(.8);opacity:.35}
+  35%{transform:translateY(-5px) scale(1);opacity:1}}
+
+/* Вложение перед отправкой */
+.attach-preview{display:none;align-items:center;gap:10px;margin:0 12px 8px;padding:9px 10px;
+  border-radius:14px;background:var(--s2);border:1px solid var(--line)}
+.attach-preview.show{display:flex;animation:itemIn .3s var(--ease-out)}
+.attach-preview .fico{width:34px;height:34px;border-radius:10px;background:var(--s3);color:var(--lime);
+  display:grid;place-items:center;flex-shrink:0}
+.attach-preview .finfo{flex:1;min-width:0}
+.attach-preview .fname{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attach-preview .fsize{font-size:11.5px;color:var(--hint)}
+.attach-preview .rm{width:28px;height:28px;border-radius:50%;background:var(--s3);display:grid;place-items:center;
+  color:var(--hint);flex-shrink:0}
+.attach-preview .rm .ic{width:16px;height:16px}
+
+.composer{display:flex;gap:8px;align-items:flex-end;flex-shrink:0;
+  padding:8px 12px calc(10px + env(safe-area-inset-bottom))}
+.clip-btn{width:44px;height:44px;border-radius:50%;background:var(--s2);border:1px solid var(--line);
+  color:var(--hint);display:grid;place-items:center;flex-shrink:0;
+  transition:transform .2s var(--ease-spring),color .18s,border-color .18s}
+.clip-btn:active{transform:scale(.9)}
+.clip-btn.has{color:var(--lime);border-color:rgba(200,255,46,.5)}
+.composer textarea{flex:1;resize:none;min-height:44px;max-height:140px;padding:11px 16px;border-radius:22px;
+  border:1px solid var(--line);background:var(--s2);color:var(--text);font:inherit;font-size:16px;line-height:1.35;
+  outline:none;transition:border-color .15s}
+.composer textarea:focus{border-color:rgba(200,255,46,.6)}
+.composer textarea::placeholder{color:var(--hint)}
+.send{width:44px;height:44px;border-radius:50%;background:var(--lime);color:var(--ink);display:grid;place-items:center;
+  flex-shrink:0;transition:transform .2s var(--ease-spring),background .18s,color .18s}
+.send:active{transform:scale(.88)}
+.send:disabled{background:var(--s3);color:var(--hint)}
+.send .ic{stroke-width:2.6}
+
+/* Пустые состояния, скелетоны */
+.empty{position:relative;z-index:1;text-align:center;color:var(--hint);padding:48px 24px;
+  animation:itemIn .38s var(--ease-out) backwards}
+.empty .big{width:76px;height:76px;margin:0 auto 18px;border-radius:26px;background:var(--s2);border:1px solid var(--line);
+  display:grid;place-items:center;color:var(--lime)}
+.empty .big .ic{width:34px;height:34px}
+.empty b{display:block;color:var(--text);font-size:17px;margin-bottom:4px}
+.btn-s{margin-top:18px;padding:11px 24px;border-radius:999px;background:var(--lime);color:var(--ink);font-weight:700;
+  transition:transform .2s var(--ease-spring)}
+.btn-s:active{transform:scale(.94)}
+.sk{height:72px;border-radius:18px;margin-bottom:10px;background:var(--s1);position:relative;overflow:hidden}
+.sk::after{content:"";position:absolute;inset:0;background:var(--s3);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:0}50%{opacity:1}}
+
+/* Профиль */
+.hero{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;padding:22px 0 24px}
+.avatar{width:96px;height:96px;border-radius:50%;background:var(--lime);color:var(--ink);display:grid;place-items:center;
+  font-size:38px;font-weight:800;overflow:hidden;margin-bottom:14px;
+  box-shadow:0 0 0 4px var(--bg),0 0 0 6px var(--lime)}
+.avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.hero .n{font-size:23px;font-weight:800;letter-spacing:-.02em}
+.hero .u{color:var(--hint);margin-top:2px}
+.tag{margin-top:10px;padding:5px 13px;border-radius:999px;background:var(--s2);border:1px solid var(--line);
+  font-size:12px;color:var(--hint);font-variant-numeric:tabular-nums}
+
+.toast{position:fixed;left:50%;top:14px;transform:translate(-50%,-160%);background:var(--lime);color:var(--ink);
+  font-weight:700;font-size:14px;padding:10px 18px;border-radius:999px;max-width:90%;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;box-shadow:0 10px 26px rgba(0,0,0,.55);opacity:0;
+  transition:transform .34s var(--ease-spring),opacity .2s ease;z-index:50}
+.toast.show{transform:translate(-50%,0);opacity:1}
+
+/* Анимации интерфейса — часть запрошенного поведения, поэтому при
+   системном "уменьшении движения" отключаем только декор, а не переходы. */
+@media (prefers-reduced-motion:reduce){
+  .deco,.dots i,.sk::after{animation:none!important}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="stage">
+
+    <section class="screen" id="screen-chats">
+      <div class="deco" aria-hidden="true">
+        <svg class="a" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="#c8ff2e" stroke-width="2"/></svg>
+        <svg class="b" viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" rx="18" fill="none" stroke="#f1f1ec" stroke-width="2" transform="rotate(18 50 50)"/></svg>
+        <svg class="c" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#c8ff2e"/></svg>
+        <svg class="d" viewBox="0 0 100 100"><rect x="18" y="18" width="64" height="64" rx="14" fill="#c8ff2e"/></svg>
+      </div>
+      <header class="top">
+        <div class="logo"><img id="logo-img" src="/assets/logo.jpeg" alt="" data-step="0" onerror="tryNextLogo(this)"><span id="logo-fallback" style="display:none"></span></div>
+        <div class="tt"><h1>Чаты</h1><p>Nine AI</p></div>
+      </header>
+      <div class="content" id="chats-list"></div>
+      <button class="fab" id="fab"><i data-ic="plus"></i>Новый чат</button>
+    </section>
+
+    <section class="screen" id="screen-chat">
+      <header class="chead">
+        <button class="back" aria-label="Назад" onclick="backToChats()"><i data-ic="back"></i></button>
+        <div class="tt">
+          <div class="name" id="chat-title"></div>
+          <div class="chip" id="chat-model"></div>
+        </div>
+      </header>
+      <div class="messages" id="messages"></div>
+      <div class="attach-preview" id="attach-preview">
+        <div class="fico">${''}</div>
+        <div class="finfo"><div class="fname" id="attach-name"></div><div class="fsize" id="attach-size"></div></div>
+        <button class="rm" id="attach-remove" aria-label="Убрать файл"></button>
+      </div>
+      <div class="composer">
+        <button class="clip-btn" id="clip-btn" aria-label="Прикрепить файл"></button>
+        <input type="file" id="file-input" hidden>
+        <textarea id="input" placeholder="Сообщение" rows="1"></textarea>
+        <button class="send" id="send-btn" aria-label="Отправить" onclick="sendMessage()" disabled></button>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-models">
+      <header class="top">
+        <div class="tt"><h1>Модели</h1><p>Выберите, с какой моделью общаться</p></div>
+      </header>
+      <div class="content" id="models-list"></div>
+    </section>
+
+    <section class="screen" id="screen-profile">
+      <header class="top">
+        <div class="tt"><h1>Профиль</h1></div>
+      </header>
+      <div class="content" id="profile-content"></div>
+    </section>
+
+  </div>
+
+  <nav class="tabbar" id="tabbar">
+    <i class="indicator"></i>
+    <button class="tab on" data-tab="chats"><i data-ic="chat"></i><span>Чаты</span></button>
+    <button class="tab" data-tab="models"><i data-ic="cpu"></i><span>Модели</span></button>
+    <button class="tab" data-tab="profile"><i data-ic="user"></i><span>Профиль</span></button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const tg = window.Telegram.WebApp;
+const safe = f => { try { return f(); } catch(e) {} };
+[() => tg.ready(), () => tg.expand(), () => tg.setHeaderColor('#000000'),
+ () => tg.setBackgroundColor('#000000'), () => tg.setBottomBarColor('#000000'),
+ () => tg.disableVerticalSwipes()].forEach(safe);
+
+// Полностью убираем жест масштабирования (пинч/даблтап) внутри мини-аппа
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, {passive:false});
+let lastTap = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTap < 320) e.preventDefault();
+  lastTap = now;
+}, {passive:false});
+
+const $ = s => document.querySelector(s);
+const hap = (t = 'light') => safe(() => tg.HapticFeedback.impactOccurred(t));
+
+/* ---------- SVG-иконки ---------- */
+const I = {
+  chat:'<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/>',
+  cpu:'<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="10" y="10" width="4" height="4" rx=".6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  back:'<path d="M15 5l-7 7 7 7"/>',
+  send:'<path d="M12 19V5M5 12l7-7 7 7"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  chev:'<path d="M9 5l7 7-7 7"/>',
+  spark:'<path d="M11 3l1.9 5.6L18.5 10.5 12.9 12.4 11 18l-1.9-5.6L3.5 10.5l5.6-1.9z"/><path d="M19 15.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
+  alert:'<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.6v.01"/>',
+  clip:'<path d="M20.5 12.3l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.5 3.5 0 0 1 5 5l-8.6 8.6a2 2 0 0 1-2.8-2.8l7.9-7.9"/>',
+  file:'<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/>',
+  x:'<path d="M6 6l12 12M18 6L6 18"/>',
+  dl:'<path d="M12 4v11M7.5 11l4.5 4.5L16.5 11"/><path d="M5 19h14"/>',
+  copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
+};
+const ic = n => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
+document.querySelectorAll('[data-ic]').forEach(e => e.innerHTML = ic(e.dataset.ic));
+$('#logo-fallback').innerHTML = ic('spark');
+// index.html лежит в mini_app/, а assets/ — в корне проекта, так что пробуем
+// несколько вероятных путей по очереди, прежде чем показать иконку-заглушку.
+const LOGO_PATHS = ['/assets/logo.jpeg', '../assets/logo.jpeg', 'assets/logo.jpeg'];
+function tryNextLogo(img) {
+  const step = (+img.dataset.step || 0) + 1;
+  if (step < LOGO_PATHS.length) { img.dataset.step = step; img.src = LOGO_PATHS[step]; }
+  else { img.remove(); $('#logo-fallback').style.display = 'grid'; }
+}
+$('#clip-btn').innerHTML = ic('clip');
+$('#send-btn').innerHTML = ic('send');
+$('#attach-preview .fico').innerHTML = ic('file');
+$('#attach-remove').innerHTML = ic('x');
+
+/* ---------- API ---------- */
+const MAX_TEXT_FILE_MB = 2;
+const MAX_FILE_TEXT_CHARS = 20000;
+const TEXT_EXT = /\.(txt|md|markdown|json|csv|tsv|log|ya?ml|xml|html?|css|js|jsx|ts|tsx|py|java|kt|swift|c|h|cpp|cs|go|rs|rb|php|sql|sh|ps1|bat|ini|toml|cfg|conf|env|srt|vtt)$/i;
+
+// Текст файла читаем прямо в браузере и отправляем обычным JSON: серверу
+// нужен именно текст, а multipart внутри WebView Telegram ненадёжен.
+async function filePayload(file) {
+  const payload = {filename: file.name, file_size: file.size};
+  const textual = file.type.startsWith('text/')
+    || /(json|xml|javascript|csv|yaml|x-sh)/.test(file.type)
+    || TEXT_EXT.test(file.name);
+  if (!textual || file.size > MAX_TEXT_FILE_MB * 1024 * 1024) return payload;
+  try {
+    const text = await file.text();
+    if (text && !text.includes('\u0000')) {
+      payload.file_text = text.slice(0, MAX_FILE_TEXT_CHARS);
+    }
+  } catch(e) {}
+  return payload;
+}
+
+const api = {
+  async request(method, path, body) {
+    const res = await fetch(path, {
+      method,
+      headers: {'Content-Type':'application/json','X-Init-Data': tg.initData},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
+  me()               { return this.request('GET','/api/me'); },
+  chats()            { return this.request('GET','/api/chats'); },
+  createChat(title)  { return this.request('POST','/api/chats',{title}); },
+  messages(id)       { return this.request('GET',`/api/chats/${id}/messages`); },
+  async send(id, text, file) {
+    const body = {text: text || ''};
+    if (file) Object.assign(body, await filePayload(file));
+    return this.request('POST', `/api/chats/${id}/messages`, body);
+  },
+  saveFile(filename, content) { return this.request('POST','/api/save-file',{filename, content}); },
+  setModel(model)    { return this.request('POST','/api/model',{model}); },
+  setActiveChat(cid) { return this.request('POST','/api/active-chat',{chat_id:cid}); },
+};
+
+const state = { me:null, chats:[], currentChat:null, models:{}, thinking:false, screen:'chats', pendingFile:null };
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const renderMd = t => {
+  try {
+    const html = marked.parse(t || '', {breaks:true, gfm:true});
+    return window.DOMPurify ? DOMPurify.sanitize(html) : esc(t);
+  } catch(e) { return esc(t); }
+};
+
+// Когда ИИ присылает код как markdown-блок, превращаем его в файл для скачивания
+// в один тап — вместо того чтобы человек копировал текст руками.
+const EXT_MAP = {
+  html:'html', xml:'xml', css:'css', json:'json',
+  javascript:'js', js:'js', typescript:'ts', ts:'ts', jsx:'jsx', tsx:'tsx',
+  python:'py', py:'py', java:'java', kotlin:'kt', swift:'swift',
+  c:'c', h:'h', cpp:'cpp', 'c++':'cpp', cs:'cs', csharp:'cs', go:'go', rust:'rs', rs:'rs',
+  ruby:'rb', rb:'rb', php:'php', sql:'sql', yaml:'yml', yml:'yml',
+  bash:'sh', sh:'sh', shell:'sh', zsh:'sh', powershell:'ps1',
+  markdown:'md', md:'md', dockerfile:'dockerfile', toml:'toml', ini:'ini', txt:'txt', text:'txt',
+};
+const DEFAULT_NAME = {
+  html:'index.html', css:'styles.css', js:'script.js', ts:'script.ts',
+  jsx:'component.jsx', tsx:'component.tsx', py:'script.py', json:'data.json',
+  sh:'script.sh', yml:'config.yml', sql:'query.sql', md:'notes.md',
+};
+
+// Основной путь: сервер запущен на этом же ПК, поэтому он сам пишет файл
+// в C:\NineAI и открывает Проводник. В чат Telegram ничего не отправляется.
+async function downloadText(text, filename, btn) {
+  if (btn) { btn.disabled = true; btn.style.opacity = '.5'; }
+  try {
+    const res = await api.saveFile(filename, text);
+    hap('medium');
+    toast('Сохранено: ' + (res.path || filename));
+  } catch(e) {
+    safe(() => tg.HapticFeedback.notificationOccurred('error'));
+    toast('Не удалось сохранить — проверьте, что бот запущен');
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+  }
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch(e) {
+    // Запасной вариант для вебвью без доступа к Clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand('copy'); } catch(e2) {}
+    ta.remove();
+  }
+  hap('light');
+  toast('Код скопирован');
+}
+
+// Пытаемся вытащить имя файла из первой строки кода, если ИИ его там указал
+// (// filename: app.js, # app.py, <!-- index.html --> и т.п.)
+function guessFilename(codeText, ext) {
+  const firstLine = codeText.split('\n', 1)[0] || '';
+  const m = firstLine.match(/^(?:\/\/|#|<!--|--|\*)\s*(?:file(?:name)?:?\s*)?([\w.-]+\.[a-z0-9]{1,8})\b/i);
+  if (m) return m[1];
+  return DEFAULT_NAME[ext] || ('code.' + ext);
+}
+
+function enhanceCodeBlocks(root) {
+  root.querySelectorAll('pre:not([data-enh])').forEach(pre => {
+    pre.setAttribute('data-enh', '1');
+    const codeEl = pre.querySelector('code');
+    const cls = codeEl ? codeEl.className : '';
+    const langMatch = cls.match(/language-([\w+]+)/);
+    const lang = langMatch ? langMatch[1].toLowerCase() : '';
+    const ext = EXT_MAP[lang] || (lang || 'txt');
+    const codeText = (codeEl || pre).textContent;
+    const filename = guessFilename(codeText, ext);
+    const bar = document.createElement('div');
+    bar.className = 'code-bar';
+    bar.innerHTML = `<span class="code-lang">${esc(filename)}</span>
+      <button class="code-act" type="button" aria-label="Копировать">${ic('copy')}</button>
+      <button class="code-act dl" type="button" aria-label="Скачать">${ic('dl')}</button>`;
+    pre.parentNode.insertBefore(bar, pre);
+    const [copyBtn, dlBtn] = bar.querySelectorAll('.code-act');
+    copyBtn.onclick = () => copyText(codeText);
+    dlBtn.onclick = () => downloadText(codeText, filename, dlBtn);
+  });
+}
+
+const fmtSize = n => {
+  if (n == null) return '';
+  if (n < 1024) return n + ' Б';
+  if (n < 1024*1024) return (n/1024).toFixed(1) + ' КБ';
+  return (n/1024/1024).toFixed(1) + ' МБ';
+};
+
+let toastTimer;
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+const emptyHtml = (icon, title, text, extra = '') =>
+  `<div class="empty"><div class="big">${ic(icon)}</div><b>${title}</b>${text}${extra}</div>`;
+const retryBtn = fn => `<div><button class="btn-s" onclick="${fn}">Повторить</button></div>`;
+
+/* ---------- Навигация ---------- */
+const TABS = ['chats','models','profile'];
+const TAB_INDEX = {chats:0, models:1, profile:2};
+
+function go(name) {
+  const prev = state.screen;
+  state.screen = name;
+
+  // Направление перехода: вкладки листаются вправо/влево, чат въезжает
+  // справа, возврат к списку — слева. Старый экран плавно растворяется.
+  const prevTab = TAB_INDEX[prev], nextTab = TAB_INDEX[name];
+  let dir = '';
+  if (nextTab != null && prevTab != null) {
+    if (nextTab > prevTab) dir = 'right';
+    else if (nextTab < prevTab) dir = 'left';
+  } else if (name === 'chat') {
+    dir = 'right';
+  } else if (prev === 'chat') {
+    dir = 'left';
+  }
+
+  document.querySelectorAll('.screen').forEach(s => {
+    const on = s.id === 'screen-' + name;
+    if (on) {
+      clearTimeout(s._leaveTimer);
+      s.classList.remove('leave');
+    } else if (s.classList.contains('active')) {
+      s.classList.remove('active');
+      s.classList.add('leave');
+      s.style.setProperty('--out-x', dir === 'right' ? '-18px' : dir === 'left' ? '18px' : '0px');
+      clearTimeout(s._leaveTimer);
+      s._leaveTimer = setTimeout(() => s.classList.remove('leave'), 280);
+    }
+    s.classList.toggle('active', on);
+    s.classList.remove('anim-left','anim-right');
+    if (on && dir) s.classList.add(dir === 'right' ? 'anim-right' : 'anim-left');
+  });
+
+  const inChat = name === 'chat';
+  document.body.classList.toggle('in-chat', inChat);
+  const i = TABS.indexOf(name);
+  if (i >= 0) {
+    $('#tabbar').style.setProperty('--i', i);
+    document.querySelectorAll('.tab').forEach((t, k) => t.classList.toggle('on', k === i));
+  }
+  safe(() => inChat ? tg.BackButton.show() : tg.BackButton.hide());
+}
+
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  const n = t.dataset.tab;
+  hap();
+  if (!state.me) return init();
+  if (n === 'chats') {
+    go(n);
+    refreshChatsAfterSwitch();
+    return;
+  }
+  if (n === 'models') renderModels();
+  if (n === 'profile') renderProfile();
+  go(n);
+});
+
+// Список чатов обновляем только после того, как экран доехал: иначе ответ
+// сети приходит в середине анимации и перерисовывает список под ней.
+const refreshChatsAfterSwitch = () => setTimeout(loadChats, 380);
+
+function backToChats() {
+  state.currentChat = null;
+  clearAttachment();
+  go('chats');
+  refreshChatsAfterSwitch();
+}
+safe(() => tg.BackButton.onClick(backToChats));
+if (tg.initData && safe(() => tg.isVersionAtLeast('6.1'))) document.body.classList.add('native-back');
+
+/* ---------- Чаты ---------- */
+async function init() {
+  go('chats');
+  $('#chats-list').innerHTML = '<div class="sk"></div>'.repeat(4);
+  try {
+    state.me = await api.me();
+    state.models = state.me.models || {};
+    await loadChats();
+  } catch(e) {
+    $('#chats-list').innerHTML = emptyHtml('alert', 'Ошибка авторизации', esc(e.message), retryBtn('init()'));
+  }
+}
+
+// Появление карточек через Web Animations API: одна анимация на элемент,
+// она не перезапускается при скрытии/показе экрана (в отличие от CSS-класса),
+// поэтому вкладки переключаются без «догоняющих» дёрганий списка.
+function animateIn(root) {
+  if (!root.animate) return;
+  root.querySelectorAll('.item').forEach((el, i) => {
+    el.animate(
+      [{opacity: 0, transform: 'translateY(12px) scale(.985)'},
+       {opacity: 1, transform: 'none'}],
+      {duration: 420, delay: Math.min(i, 5) * 40,
+       easing: 'cubic-bezier(.22,1,.36,1)', fill: 'backwards'}
+    );
+  });
+}
+
+let chatsSig = '';
+
+// Подсветка активного чата без перерисовки всего списка: полная перерисовка
+// во время возврата на вкладку выглядела как рывок.
+function markActiveChat() {
+  const act = state.me && state.me.active_chat_id;
+  document.querySelectorAll('#chats-list .item').forEach(it => {
+    const on = +it.dataset.id === act;
+    it.classList.toggle('on', on);
+    const sub = it.querySelector('.s');
+    if (sub) sub.textContent = on ? 'Активный чат' : 'Открыть диалог';
+    const end = it.querySelector('.end');
+    if (end) end.innerHTML = ic(on ? 'check' : 'chev');
+  });
+}
+
+async function loadChats() {
+  const el = $('#chats-list');
+  let list;
+  try { list = await api.chats(); }
+  catch(e) {
+    if (!el.querySelector('.item')) {
+      chatsSig = '';
+      el.innerHTML = emptyHtml('alert', 'Не удалось загрузить чаты', 'Проверьте соединение', retryBtn('loadChats()'));
+    }
+    return;
+  }
+  state.chats = list;
+
+  // Если список не изменился, DOM не трогаем — только подсветку.
+  const sig = JSON.stringify(list);
+  if (sig === chatsSig) { markActiveChat(); return; }
+  chatsSig = sig;
+
+  if (!list.length) {
+    el.innerHTML = emptyHtml('spark', 'Пока нет чатов', 'Создайте первый и начните диалог');
+    return;
+  }
+  const act = state.me.active_chat_id;
+  el.innerHTML = list.map(c => `
+    <div class="item ${c.id === act ? 'on' : ''}" data-id="${c.id}" data-title="${esc(c.title)}">
+      <div class="ico">${ic('chat')}</div>
+      <div class="body"><div class="t">${esc(c.title)}</div>
+        <div class="s">${c.id === act ? 'Активный чат' : 'Открыть диалог'}</div></div>
+      <div class="end">${ic(c.id === act ? 'check' : 'chev')}</div>
+    </div>`).join('');
+  animateIn(el);
+}
+
+$('#chats-list').addEventListener('click', e => {
+  const it = e.target.closest('.item');
+  if (it) { hap(); openChat(+it.dataset.id, it.dataset.title); }
+});
+
+let creating = false;
+$('#fab').onclick = async () => {
+  if (creating || !state.me) return;
+  creating = true; hap('medium');
+  const title = 'Чат ' + new Date().toLocaleString('ru-RU',
+    {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+  try {
+    const chat = await api.createChat(title);
+    state.me.active_chat_id = chat.id;
+    await openChat(chat.id, chat.title);
+    loadChats();
+  } catch(e) { toast('Не удалось создать чат'); }
+  finally { creating = false; }
+};
+
+/* ---------- Сообщения ---------- */
+function fileChipHtml(name, size) {
+  return `<div class="file-chip"><div class="fico">${ic('file')}</div>
+    <div class="finfo"><div class="fname">${esc(name)}</div>
+    ${size != null ? `<div class="fsize">${fmtSize(size)}</div>` : ''}</div></div>`;
+}
+
+function msgHtml(m, old) {
+  const bodyParts = [];
+  if (m.file_name) bodyParts.push(fileChipHtml(m.file_name, m.file_size));
+  if (m.content) bodyParts.push(m.role === 'assistant' ? renderMd(m.content) : esc(m.content));
+  return `<div class="msg ${m.role}${old ? ' old' : ''}">${bodyParts.join('')}</div>`;
+}
+
+function scrollBottom(smooth = true) {
+  const el = $('#messages');
+  el.scrollTo({top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto'});
+}
+
+async function openChat(id, title) {
+  state.currentChat = {id, title};
+  clearAttachment();
+  $('#chat-title').textContent = title;
+  $('#chat-model').textContent = state.models[state.me.active_model] || state.me.active_model;
+  $('#messages').innerHTML = '<div class="empty"><span class="dots"><i></i><i></i><i></i></span></div>';
+  go('chat');
+  await loadMessages();
+  scrollBottom(false);
+  api.setActiveChat(id).then(() => { state.me.active_chat_id = id; markActiveChat(); }).catch(() => {});
+}
+
+async function loadMessages() {
+  const el = $('#messages');
+  try {
+    const msgs = await api.messages(state.currentChat.id);
+    el.innerHTML = msgs.length
+      ? msgs.map(m => msgHtml(m, true)).join('')
+      : emptyHtml('spark', 'Начните диалог', 'Напишите первое сообщение');
+    enhanceCodeBlocks(el);
+  } catch(e) {
+    el.innerHTML = emptyHtml('alert', 'Не удалось загрузить сообщения', '', retryBtn('loadMessages()'));
+  }
+}
+
+const input = $('#input'), sendBtn = $('#send-btn');
+const updateSend = () => { sendBtn.disabled = state.thinking || (!input.value.trim() && !state.pendingFile); };
+
+/* ---------- Вложения ---------- */
+const MAX_FILE_MB = 20;
+$('#clip-btn').onclick = () => $('#file-input').click();
+$('#file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  if (file.size > MAX_FILE_MB * 1024 * 1024) { toast(`Файл больше ${MAX_FILE_MB} МБ`); return; }
+  state.pendingFile = file;
+  $('#attach-name').textContent = file.name;
+  $('#attach-size').textContent = fmtSize(file.size);
+  $('#attach-preview').classList.add('show');
+  $('#clip-btn').classList.add('has');
+  updateSend();
+});
+function clearAttachment() {
+  state.pendingFile = null;
+  $('#attach-preview').classList.remove('show');
+  $('#clip-btn').classList.remove('has');
+  updateSend();
+}
+$('#attach-remove').onclick = clearAttachment;
+
+async function sendMessage() {
+  if (state.thinking || !state.currentChat) return;
+  const text = input.value.trim();
+  const file = state.pendingFile;
+  if (!text && !file) return;
+
+  hap();
+  input.value = ''; input.style.height = 'auto';
+  clearAttachment();
+  state.thinking = true; updateSend();
+
+  const el = $('#messages');
+  if (el.querySelector('.empty')) el.innerHTML = '';
+  el.insertAdjacentHTML('beforeend', msgHtml({role:'user', content:text, file_name:file?.name, file_size:file?.size}));
+  const tid = 'thinking-' + Date.now();
+  el.insertAdjacentHTML('beforeend',
+    `<div class="msg assistant" id="${tid}"><span class="dots"><i></i><i></i><i></i></span></div>`);
+  scrollBottom();
+
+  try {
+    const res = await api.send(state.currentChat.id, text, file);
+    $(`#${tid}`).outerHTML = msgHtml({role:'assistant', content:res.reply});
+    enhanceCodeBlocks(el);
+    hap('soft');
+  } catch(e) {
+    $(`#${tid}`).outerHTML =
+      `<div class="msg assistant err">${ic('alert')}Не удалось получить ответ. Сообщение возвращено в поле ввода.</div>`;
+    input.value = text;
+    if (file) { state.pendingFile = file; $('#attach-name').textContent = file.name;
+      $('#attach-size').textContent = fmtSize(file.size); $('#attach-preview').classList.add('show');
+      $('#clip-btn').classList.add('has'); }
+  } finally {
+    state.thinking = false; updateSend();
+    scrollBottom();
+  }
+}
+
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+  updateSend();
+});
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && !matchMedia('(pointer:coarse)').matches) {
+    e.preventDefault(); sendMessage();
+  }
+});
+$('#messages').addEventListener('click', e => {
+  const a = e.target.closest('a[href]');
+  if (!a) return;
+  e.preventDefault();
+  safe(() => tg.openLink(a.href)) ?? window.open(a.href, '_blank');
+});
+safe(() => tg.onEvent('viewportChanged', () => { if (state.screen === 'chat') scrollBottom(false); }));
+
+/* ---------- Модели ---------- */
+function renderModels() {
+  const el = $('#models-list');
+  const entries = Object.entries(state.models);
+  if (!entries.length) { el.innerHTML = emptyHtml('cpu', 'Моделей пока нет', 'Список пуст'); return; }
+  const active = state.me.active_model;
+  el.innerHTML = entries.map(([id, name]) => `
+    <div class="item ${id === active ? 'on' : ''}" data-id="${esc(id)}">
+      <div class="ico">${ic('cpu')}</div>
+      <div class="body"><div class="t">${esc(name)}</div></div>
+      <div class="end">${id === active ? ic('check') : ''}</div>
+    </div>`).join('');
+  animateIn(el);
+}
+
+$('#models-list').addEventListener('click', e => {
+  const it = e.target.closest('.item');
+  if (it) selectModel(it.dataset.id);
+});
+
+async function selectModel(id) {
+  const prev = state.me.active_model;
+  if (id === prev) return;
+  hap('medium');
+  state.me.active_model = id; renderModels();
+  try {
+    await api.setModel(id);
+    safe(() => tg.HapticFeedback.notificationOccurred('success'));
+    toast('Модель: ' + (state.models[id] || id));
+  } catch(e) {
+    state.me.active_model = prev; renderModels();
+    toast('Не удалось сменить модель');
+  }
+}
+
+/* ---------- Профиль ---------- */
+function renderProfile() {
+  const m = state.me;
+  // Аватар берём из Telegram (initDataUnsafe.user.photo_url); если бэкенд
+  // присылает свой URL (m.photo_url), он имеет приоритет.
+  const photo = m.photo_url || safe(() => tg.initDataUnsafe.user.photo_url);
+  const initial = (m.first_name || m.username || 'U').trim().charAt(0).toUpperCase();
+  const chat = state.chats.find(c => c.id === m.active_chat_id);
+  $('#profile-content').innerHTML = `
+    <div class="hero">
+      <div class="avatar">${photo ? `<img src="${esc(photo)}" alt="">` : esc(initial)}</div>
+      <div class="n">${esc(m.first_name || 'Пользователь')}</div>
+      ${m.username ? `<div class="u">@${esc(m.username)}</div>` : ''}
+      <div class="tag">ID ${esc(m.user_id)}</div>
+    </div>
+    <div class="item" id="p-model">
+      <div class="ico">${ic('cpu')}</div>
+      <div class="body"><div class="s">Активная модель</div>
+        <div class="t">${esc(state.models[m.active_model] || m.active_model)}</div></div>
+      <div class="end">${ic('chev')}</div>
+    </div>
+    <div class="item static">
+      <div class="ico">${ic('chat')}</div>
+      <div class="body"><div class="s">Активный чат</div>
+        <div class="t">${chat ? esc(chat.title) : 'Не выбран'}</div></div>
+    </div>`;
+  animateIn($('#profile-content'));
+  $('#p-model').onclick = () => { hap(); renderModels(); go('models'); };
+}
+
+init();
+</script>
+</body>
+</html>
