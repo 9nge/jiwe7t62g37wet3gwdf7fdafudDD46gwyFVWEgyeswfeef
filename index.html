@@ -332,6 +332,12 @@ document.addEventListener('touchend', e => {
 const $ = s => document.querySelector(s);
 const hap = (t = 'light') => safe(() => tg.HapticFeedback.impactOccurred(t));
 
+// GitHub Pages отдаёт только статику, поэтому API и логотип берём с туннеля
+// бота. На самом туннеле (и локально) остаются относительные пути.
+// Если cloudflared перезапустится и адрес сменится — обнови строку ниже.
+const TUNNEL_URL = 'https://push-choir-marijuana-curious.trycloudflare.com';
+const API_BASE = location.hostname.endsWith('github.io') ? TUNNEL_URL : '';
+
 /* ---------- SVG-иконки ---------- */
 const I = {
   chat:'<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/>',
@@ -355,7 +361,9 @@ document.querySelectorAll('[data-ic]').forEach(e => e.innerHTML = ic(e.dataset.i
 $('#logo-fallback').innerHTML = ic('spark');
 // index.html лежит в mini_app/, а assets/ — в корне проекта, так что пробуем
 // несколько вероятных путей по очереди, прежде чем показать иконку-заглушку.
-const LOGO_PATHS = ['/assets/logo.jpeg', '../assets/logo.jpeg', 'assets/logo.jpeg'];
+const LOGO_PATHS = API_BASE
+  ? [API_BASE + '/assets/logo.jpeg']
+  : ['/assets/logo.jpeg', '../assets/logo.jpeg', 'assets/logo.jpeg'];
 function tryNextLogo(img) {
   const step = (+img.dataset.step || 0) + 1;
   if (step < LOGO_PATHS.length) { img.dataset.step = step; img.src = LOGO_PATHS[step]; }
@@ -390,7 +398,7 @@ async function filePayload(file) {
 
 const api = {
   async request(method, path, body) {
-    const res = await fetch(path, {
+    const res = await fetch(API_BASE + path, {
       method,
       headers: {'Content-Type':'application/json','X-Init-Data': tg.initData},
       body: body ? JSON.stringify(body) : undefined,
