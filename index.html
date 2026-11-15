@@ -258,7 +258,7 @@ body.native-back .back{display:none}
         <svg class="d" viewBox="0 0 100 100"><rect x="18" y="18" width="64" height="64" rx="14" fill="#c8ff2e"/></svg>
       </div>
       <header class="top">
-        <div class="logo"><img id="logo-img" src="/assets/logo.jpeg" alt="" data-step="0" onerror="tryNextLogo(this)"><span id="logo-fallback" style="display:none"></span></div>
+        <div class="logo"><img id="logo-img" alt="" data-step="0" onerror="tryNextLogo(this)"><span id="logo-fallback" style="display:none"></span></div>
         <div class="tt"><h1>Чаты</h1><p>Nine AI</p></div>
       </header>
       <div class="content" id="chats-list"></div>
@@ -335,7 +335,7 @@ const hap = (t = 'light') => safe(() => tg.HapticFeedback.impactOccurred(t));
 // GitHub Pages отдаёт только статику, поэтому API и логотип берём с туннеля
 // бота. На самом туннеле (и локально) остаются относительные пути.
 // Если cloudflared перезапустится и адрес сменится — обнови строку ниже.
-const TUNNEL_URL = 'https://push-choir-marijuana-curious.trycloudflare.com';
+const TUNNEL_URL = 'https://euro-violation-careers-played.trycloudflare.com';
 const API_BASE = location.hostname.endsWith('github.io') ? TUNNEL_URL : '';
 
 /* ---------- SVG-иконки ---------- */
@@ -364,6 +364,10 @@ $('#logo-fallback').innerHTML = ic('spark');
 const LOGO_PATHS = API_BASE
   ? [API_BASE + '/assets/logo.jpeg']
   : ['/assets/logo.jpeg', '../assets/logo.jpeg', 'assets/logo.jpeg'];
+// src задаём после выбора пути: статический "/assets/logo.jpeg" на Pages
+// уходил в корень github.io, падал и логотип заменялся заглушкой.
+const logoEl = $('#logo-img');
+if (logoEl) logoEl.src = LOGO_PATHS[0];
 function tryNextLogo(img) {
   const step = (+img.dataset.step || 0) + 1;
   if (step < LOGO_PATHS.length) { img.dataset.step = step; img.src = LOGO_PATHS[step]; }
